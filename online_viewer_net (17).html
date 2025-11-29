@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+<meta charset="UTF-8">
+<title>Tal Runner</title>
+<style>
+  body {
+    margin: 0;
+    background: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    direction: rtl;
+    font-family: Arial, sans-serif;
+  }
+
+  #game-container {
+    position: relative;
+    width: 1024px;
+    height: 576px;
+    overflow: hidden;
+    background: #000;
+  }
+
+  /* מסך טעינה */
+  #loading-screen {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    background: #000;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    text-align: center;
+  }
+
+  #loading-screen span {
+    margin-top: 12px;
+    font-size: 16px;
+    opacity: 0.8;
+  }
+
+  /* מסך פתיחה */
+  #intro-screen {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    background: #000;
+    display: none;
+    justify-content: center;
+    align-items: center;
+  }
+
+  #intro-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  #start-button {
+    position: absolute;
+    left: 50%;
+    bottom: 20px;
+    transform: translateX(-50%);
+    padding: 14px 32px;
+    font-size: 26px;
+    font-weight: bold;
+    background: rgba(0, 0, 0, 0.65);
+    color: #fff;
+    border: 2px solid #ffffffcc;
+    border-radius: 14px;
+    cursor: pointer;
+    text-shadow: 0 1px 3px #000;
+  }
+
+  #start-button:hover {
+    background: rgba(255, 255, 255, 0.18);
+  }
+
+  /* מסך "איך משחקים" – פופ-אפ יפה על הרקע */
+  #howto-screen {
+    position: absolute;
+    inset: 0;
+    z-index: 11;
+    background: rgba(0,0,0,0.25);
+    backdrop-filter: blur(4px);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+  }
+
+  #howto-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+
+  #instructions-box {
+    background: #fdfdfd;
+    padding: 18px 24px;
+    border-radius: 16px;
+    font-size: 18px;
+    max-width: 70%;
+    line-height: 1.6;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+    border: 1px solid #ddd;
+    text-align: right;
+  }
+
+  #instructions-box p {
+    margin: 8px 0;
+  }
+
+  #howto-title-wrapper {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+  }
+
+  .rotating-title {
+    height: 130px;
+    image-rendering: pixelated;
+    opacity: 1;
+    transition: opacity 0.4s ease;
+  }
+
+  .fade-out {
+    opacity: 0;
+  }
+
+  #play-button {
+    margin-top: 4px;
+    padding: 10px 26px;
+    font-size: 20px;
+    border-radius: 12px;
+    border: 2px solid #333;
+    background: #ffffff;
+    color: #222;
+    cursor: pointer;
+  }
+
+  #play-button:hover {
+    background: #f0f0f0;
+  }
+
+  /* המשחק */
+  #game {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    image-rendering: pixelated;
+    display: none;
+  }
+
+  #office-bg {
+    position: absolute;
+    inset: 0;
+    background: url("https://i.postimg.cc/tCynbGBD/yzwb-ll-sm-5.png") no-repeat;
+    background-size: auto 100%;
+    background-repeat: repeat-x;
+    animation: scrollBg 70s linear infinite;
+    z-index: 1;
+  }
+
+  @keyframes scrollBg {
+    from { background-position: -1024px 0; }
+    to   { background-position: 0 0; }
+  }
+
+  #player-layer,
+  #enemy-layer,
+  #headline-layer,
+  #ui-layer {
+    display: none; /* יופיעו רק כשהמשחק מתחיל */
+  }
+
+  #player-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 3;
+  }
+
+  #player {
+    position: absolute;
+    bottom: 80px;
+    left: 90%;
+    transform: translateX(-50%);
+    height: 192px;
+    width: auto;
+    image-rendering: pixelated;
+    display: block;
+  }
+
+  #enemy-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 3;
+  }
+
+  /* פלוצה על הקרקע */
+  #enemy {
+    position: absolute;
+    bottom: 80px;
+    left: -200px;
+    height: 130px;
+    width: auto;
+    image-rendering: pixelated;
+    display: block;
+  }
+
+  /* חתול, זום, סופר צעדים, וואטסאפ – מוסתרים כברירת מחדל */
+  .special-enemy {
+    position: absolute;
+    bottom: 80px;
+    left: -500px;
+    height: 130px;
+    width: auto;
+    image-rendering: pixelated;
+    display: none;
+  }
+
+  /* וואטסאפ – קצת קטן יותר וגבוה */
+  #whatsapp-enemy {
+    bottom: 150px;
+    height: 110px;
+  }
+
+  /* שכבת כותרות מעופפות */
+  #headline-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    pointer-events: none;
+  }
+
+  .headline {
+    position: absolute;
+    top: 70px;
+    left: 110%;
+    height: 95px;
+    width: auto;
+    cursor: pointer;
+    pointer-events: auto;
+    image-rendering: pixelated;
+    transition: transform 0.12s ease-out, opacity 0.12s ease-out;
+  }
+
+  .headline-hit {
+    transform: scale(1.2) translateY(-6px);
+    opacity: 0;
+  }
+
+  #ui-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 4;
+  }
+
+  /* לבבות */
+  #lives {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    display: flex;
+    gap: 8px;
+  }
+
+  .heart {
+    width: 40px;
+    height: auto;
+    image-rendering: pixelated;
+  }
+
+  /* יוניקים */
+  #uniques-bar {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    color: #fff;
+    font-size: 20px;
+    text-shadow: 0 1px 3px #000;
+  }
+
+  #uniques-value {
+    font-weight: bold;
+    margin-right: 8px;
+  }
+
+  /* סרגל התקדמות */
+  #progress-bar {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 40%;
+    height: 16px;
+    border-radius: 10px;
+    border: 2px solid #ffffffcc;
+    background: rgba(0,0,0,0.5);
+    overflow: hidden;
+  }
+
+  #progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg,#4caf50,#81c784);
+  }
+
+  /* ספירת צעדים */
+  #steps-countdown {
+    position: absolute;
+    bottom: 44px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #fff;
+    font-size: 16px;
+    text-shadow: 0 1px 3px #000;
+    opacity: 0;
+    transition: opacity 0.2s ease-out;
+  }
+
+  #popup {
+    position: absolute;
+    left: 50%;
+    top: 20%;
+    transform: translateX(-50%);
+    max-width: 60%;
+    background: rgba(0,0,0,0.8);
+    color: #fff;
+    padding: 12px 18px;
+    border-radius: 10px;
+    font-size: 18px;
+    text-align: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease-out;
+    white-space: pre-line;
+  }
+
+  /* מסכי סוף – הפסד / ניצחון */
+  .end-screen {
+    position: absolute;
+    inset: 0;
+    z-index: 15;
+    background: rgba(0,0,0,0.9);
+    color: #fff;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 24px;
+  }
+
+  .end-screen h2 {
+    margin-bottom: 16px;
+    font-size: 32px;
+  }
+
+  .end-screen p {
+    margin: 6px 0;
+    max-width: 80%;
+    font-size: 18px;
+  }
+
+  .end-screen .score {
+    margin-top: 12px;
+    font-weight: bold;
+    font-size: 20px;
+  }
+
+  .end-title-wrapper {
+    margin-top: 14px;
+  }
+
+  .end-button {
+    margin-top: 18px;
+    padding: 10px 26px;
+    font-size: 20px;
+    border-radius: 10px;
+    border: 2px solid #fff;
+    background: transparent;
+    color: #fff;
+    cursor: pointer;
+  }
+
+  .end-button:hover {
+    background: rgba(255,255,255,0.15);
+  }
+</style>
+</head>
+<body>
+
+<div id="game-container">
+
+  <!-- מסך טעינה -->
+  <div id="loading-screen">
+    טוען את טל, האויבים והטייטלים...
+    <span>רק רגע, המשחק מתארגן</span>
+  </div>
+
+  <!-- מסך פתיחה -->
+  <div id="intro-screen">
+    <img
+      id="intro-image"
+      src="https://github.com/Itay2802/tal/raw/a9ece2eba9b34a17742dcd15c0e2ddd8c6c29910/opening_game.gif"
+      alt="opening"
+    >
+    <button id="start-button">צאי לדרך</button>
+  </div>
+
+  <!-- מסך "איך משחקים" כפופ-אפ -->
+  <div id="howto-screen">
+    <div id="howto-inner">
+      <div id="instructions-box">
+        <p>
+          טוב, אז זה הבריף: את רצה במסדרון כדי להספיק להגיע למטבחון ולשתות קפה.
+          בדרך יש 5 מכשולים: פלוצה ממשרד הפרסום ״פיתם״, הודעות וואטסאפ מעיקות,
+          חתול שעשה קקי בארון, מד צעדים ושיחות זום חופרות שיעכבו אותך במשחק.
+        </p>
+        <p>
+          דלגי מעליהם בעזרת מקשי הרווח וה״למטה״ במקלדת,
+          ואל תשכחי להקליק על הכותרות מהסטריפ כדי לאסוף - זה משתלם. כזה מין.
+        </p>
+      </div>
+      <div id="howto-title-wrapper">
+        <img id="howto-title" class="rotating-title" alt="">
+      </div>
+      <button id="play-button">קדימה. יש לי שיחה עוד רבע שעה</button>
+    </div>
+  </div>
+
+  <!-- המשחק -->
+  <div id="game">
+    <div id="office-bg"></div>
+
+    <div id="player-layer">
+      <img
+        id="player"
+        src="https://i.postimg.cc/6pt6CG6Q/yzwb-ll-sm.gif"
+        alt="Tal running"
+      >
+    </div>
+
+    <div id="enemy-layer">
+      <!-- פלוצה -->
+      <img
+        id="enemy"
+        src="https://github.com/Itay2802/tal/raw/993fd8059892d02d30a0480aabafc4f17f451270/flotza.png"
+        alt="flotza"
+      >
+      <!-- חתול -->
+      <img
+        id="cat-enemy"
+        class="special-enemy"
+        src="https://github.com/Itay2802/tal/raw/712dc840773d1a2d8bbe2a37bcca98ca4827d5af/cat.png"
+        alt="cat"
+      >
+      <!-- זום עם רקע שקוף -->
+      <img
+        id="zoom-enemy"
+        class="special-enemy"
+        src="https://github.com/Itay2802/tal/raw/c68e814936a9cca365d8e1e12f60047a7264b2da/zoomfixed.png"
+        alt="zoom"
+      >
+      <!-- סופר צעדים -->
+      <img
+        id="steps-enemy"
+        class="special-enemy"
+        src="https://github.com/Itay2802/tal/raw/2ac025297769ffe59c770c667479642d170e385a/steps.png"
+        alt="steps"
+      >
+      <!-- וואטסאפ (קריאייטיב/אסטרטגיה לסירוגין) -->
+      <img
+        id="whatsapp-enemy"
+        class="special-enemy"
+        src="https://github.com/Itay2802/tal/raw/c68e814936a9cca365d8e1e12f60047a7264b2da/whatsapp%20creatives.gif"
+        alt="whatsapp"
+      >
+    </div>
+
+    <!-- כותרות מעופפות -->
+    <div id="headline-layer">
+      <img
+        id="headline1"
+        class="headline"
+        src="https://github.com/Itay2802/tal/raw/ba93765e868e60a067a3671d44c2e5687216a6f6/title1.gif"
+        alt="title 1"
+      >
+      <img
+        id="headline2"
+        class="headline"
+        src="https://github.com/Itay2802/tal/raw/ba93765e868e60a067a3671d44c2e5687216a6f6/title2.gif"
+        alt="title 2"
+      >
+      <img
+        id="headline3"
+        class="headline"
+        src="https://github.com/Itay2802/tal/raw/ba93765e868e60a067a3671d44c2e5687216a6f6/title3.gif"
+        alt="title 3"
+      >
+      <img
+        id="headline4"
+        class="headline"
+        src="https://github.com/Itay2802/tal/raw/ba93765e868e60a067a3671d44c2e5687216a6f6/title4.gif"
+        alt="title 4"
+      >
+      <img
+        id="headline5"
+        class="headline"
+        src="https://github.com/Itay2802/tal/raw/0f145891da7f05bc7be7136bb7eefb584503e762/title6%20(3).gif"
+        alt="title 5"
+      >
+      <img
+        id="headline6"
+        class="headline"
+        src="https://github.com/Itay2802/tal/raw/0f145891da7f05bc7be7136bb7eefb584503e762/title10.gif"
+        alt="title 6"
+      >
+      <img
+        id="headline7"
+        class="headline"
+        src="https://github.com/Itay2802/tal/raw/0f145891da7f05bc7be7136bb7eefb584503e762/title9.gif"
+        alt="title 7"
+      >
+      <img
+        id="headline8"
+        class="headline"
+        src="https://github.com/Itay2802/tal/raw/0f145891da7f05bc7be7136bb7eefb584503e762/title8%20(1).gif"
+        alt="title 8"
+      >
+      <img
+        id="headline9"
+        class="headline"
+        src="https://github.com/Itay2802/tal/raw/0f145891da7f05bc7be7136bb7eefb584503e762/title7.gif"
+        alt="title 9"
+      >
+    </div>
+
+    <div id="ui-layer">
+      <!-- יוניקים -->
+      <div id="uniques-bar">
+        <span>יוניקים:</span>
+        <span id="uniques-value">0</span>
+      </div>
+
+      <!-- לבבות -->
+      <div id="lives"></div>
+
+      <!-- סרגל התקדמות -->
+      <div id="progress-bar">
+        <div id="progress-fill"></div>
+      </div>
+
+      <!-- ספירת צעדים -->
+      <div id="steps-countdown"></div>
+
+      <div id="popup"></div>
+    </div>
+  </div>
+
+  <!-- מסך הפסד -->
+  <div id="lose-screen" class="end-screen">
+    <h2>אוי, הפסדת</h2>
+    <p>עכשיו יוטיוב השתלטו על הכותרת הראשית של האתר ושואב האבק של דרימי ינחה את המהדורה.</p>
+    <p>לא נורא, גם ככה יש לך שיחה בזום עוד ארבע דקות.</p>
+    <p class="score">יוניקים שהשגת: <span id="lose-uniques">0</span></p>
+    <div class="end-title-wrapper">
+      <img id="lose-title" class="rotating-title" alt="">
+    </div>
+    <button class="end-button" id="lose-restart">שחקי שוב</button>
+  </div>
+
+  <!-- מסך ניצחון -->
+  <div id="win-screen" class="end-screen">
+    <h2>הידד!</h2>
+    <p>כל הצעות הקריאייטיב אושרו, כל הלקוחות מרוצים וכל המחלות מוגרו בהצלחה.</p>
+    <p>זה הזמן ליהנות מכוס קפה פושרת.</p>
+    <p class="score">יוניקים שהשגת: <span id="win-uniques">0</span></p>
+    <div class="end-title-wrapper">
+      <img id="win-title" class="rotating-title" alt="">
+    </div>
+    <button class="end-button" id="win-restart">שחקי שוב</button>
+  </div>
+
+</div>
+
+<script>
+(function() {
+  const loadingScreen = document.getElementById('loading-screen');
+  const introScreen   = document.getElementById('intro-screen');
+  const howtoScreen   = document.getElementById('howto-screen');
+  const game          = document.getElementById('game');
+
+  const playerLayer   = document.getElementById('player-layer');
+  const enemyLayer    = document.getElementById('enemy-layer');
+  const headlineLayer = document.getElementById('headline-layer');
+  const uiLayer       = document.getElementById('ui-layer');
+
+  const player        = document.getElementById('player');
+  const enemy         = document.getElementById('enemy');
+  const catEnemy      = document.getElementById('cat-enemy');
+  const zoomEnemy     = document.getElementById('zoom-enemy');
+  const stepsEnemy    = document.getElementById('steps-enemy');
+  const whatsappEnemy = document.getElementById('whatsapp-enemy');
+
+  const startButton   = document.getElementById('start-button');
+  const playButton    = document.getElementById('play-button');
+  const popup         = document.getElementById('popup');
+
+  const loseScreen    = document.getElementById('lose-screen');
+  const winScreen     = document.getElementById('win-screen');
+  const loseUniquesEl = document.getElementById('lose-uniques');
+  const winUniquesEl  = document.getElementById('win-uniques');
+  const loseRestart   = document.getElementById('lose-restart');
+  const winRestart    = document.getElementById('win-restart');
+
+  const RUN_SRC    = "https://i.postimg.cc/6pt6CG6Q/yzwb-ll-sm.gif";
+  const CROUCH_SRC = "https://github.com/Itay2802/tal/raw/b31174a260eec78d8f4e7e2dd0ba468837c537e3/talmitchofefet.png";
+  const HEART_SRC  = "https://github.com/Itay2802/tal/raw/c9419e34ffdd9c507750576276181c474a768146/lev.png";
+
+  const headlineEls = [
+    document.getElementById('headline1'),
+    document.getElementById('headline2'),
+    document.getElementById('headline3'),
+    document.getElementById('headline4'),
+    document.getElementById('headline5'),
+    document.getElementById('headline6'),
+    document.getElementById('headline7'),
+    document.getElementById('headline8'),
+    document.getElementById('headline9')
+  ];
+
+  const uniquesEl        = document.getElementById('uniques-value');
+  const heartsContainer  = document.getElementById('lives');
+  const progressFill     = document.getElementById('progress-fill');
+  const stepsCountdownEl = document.getElementById('steps-countdown');
+
+  const howtoTitleImg = document.getElementById('howto-title');
+  const loseTitleImg  = document.getElementById('lose-title');
+  const winTitleImg   = document.getElementById('win-title');
+
+  const titleImages = [
+    "https://github.com/Itay2802/tal/raw/ba93765e868e60a067a3671d44c2e5687216a6f6/title1.gif",
+    "https://github.com/Itay2802/tal/raw/ba93765e868e60a067a3671d44c2e5687216a6f6/title2.gif",
+    "https://github.com/Itay2802/tal/raw/ba93765e868e60a067a3671d44c2e5687216a6f6/title3.gif",
+    "https://github.com/Itay2802/tal/raw/ba93765e868e60a067a3671d44c2e5687216a6f6/title4.gif",
+    "https://github.com/Itay2802/tal/raw/0f145891da7f05bc7be7136bb7eefb584503e762/title6%20(3).gif",
+    "https://github.com/Itay2802/tal/raw/0f145891da7f05bc7be7136bb7eefb584503e762/title10.gif",
+    "https://github.com/Itay2802/tal/raw/0f145891da7f05bc7be7136bb7eefb584503e762/title9.gif",
+    "https://github.com/Itay2802/tal/raw/0f145891da7f05bc7be7136bb7eefb584503e762/title8%20(1).gif",
+    "https://github.com/Itay2802/tal/raw/0f145891da7f05bc7be7136bb7eefb584503e762/title7.gif"
+  ];
+
+  const WHATSAPP_IMAGES = [
+    "https://github.com/Itay2802/tal/raw/c68e814936a9cca365d8e1e12f60047a7264b2da/whatsapp%20creatives.gif",
+    "https://github.com/Itay2802/tal/raw/c68e814936a9cca365d8e1e12f60047a7264b2da/whatsapp%20astrategic.gif"
+  ];
+
+  function setupRotatingTitle(imgElement) {
+    let index = Math.floor(Math.random() * titleImages.length);
+    imgElement.src = titleImages[index];
+
+    setInterval(() => {
+      imgElement.classList.add('fade-out');
+      setTimeout(() => {
+        index = (index + 1) % titleImages.length;
+        imgElement.src = titleImages[index];
+        imgElement.classList.remove('fade-out');
+      }, 400);
+    }, 2500);
+  }
+
+  window.addEventListener('load', () => {
+    loadingScreen.style.display = 'none';
+    introScreen.style.display   = 'flex';
+    setupRotatingTitle(howtoTitleImg);
+    setupRotatingTitle(loseTitleImg);
+    setupRotatingTitle(winTitleImg);
+  });
+
+  loseRestart.addEventListener('click', () => location.reload());
+  winRestart.addEventListener('click', () => location.reload());
+
+  startButton.addEventListener('click', () => {
+    introScreen.style.display = 'none';
+    game.style.display        = 'block';
+    howtoScreen.style.display = 'flex';
+  });
+
+  playButton.addEventListener('click', () => {
+    howtoScreen.style.display = 'none';
+    playerLayer.style.display   = 'block';
+    enemyLayer.style.display    = 'block';
+    headlineLayer.style.display = 'block';
+    uiLayer.style.display       = 'block';
+    initGameLogic();
+  });
+
+  function initGameLogic() {
+    const gameWidth    = 1024;
+    const groundHeight = 80;
+
+    let playerBottom = groundHeight;
+    let velocityY    = 0;
+    const jumpStrength = 24;
+    const gravity      = -0.55;
+    let isJumping   = false;
+    let isCrouching = false;
+
+    // מיקום אופקי של טל – כדי שנוכל להוציא אותה מהמסך בניצחון
+    let playerXPercent = 90;
+    player.style.left = playerXPercent + "%";
+
+    let lives = 3;
+    const maxLives = 8;
+    let nextHeartThreshold = 60000;
+
+    let enemyX = -200;
+    // הפלוצה מעט פחות "חופפת" את המסך
+    const enemySpeed = 3.2;
+    let hitCooldown1 = 0;
+
+    // חתול
+    let catX = -300;
+    const catSpeed = 2.9;
+    let catActive = false;
+    let catSpawns = 0;
+    const CAT_MAX_SPAWNS = 2;
+
+    // זום
+    let zoomX = -300;
+    const zoomSpeed = 2.7;
+    let zoomActive = false;
+    let zoomSpawns = 0;
+    const ZOOM_MAX_SPAWNS = 2;
+
+    // סופר צעדים
+    let stepsX = -300;
+    const stepsSpeed = 2.8;
+    let stepsActive = false;
+    let stepsSpawns = 0;
+    const STEPS_MAX_SPAWNS = 2;
+
+    // וואטסאפ – תדירות גבוהה יותר
+    let whatsappX = -300;
+    const whatsappSpeed = 2.8;
+    let whatsappActive = false;
+    let whatsappSpawns = 0;
+    const WHATSAPP_MAX_SPAWNS = 12;
+
+    let uniques = 0;
+    let gameRunning = true;
+
+    let progress = 0;
+    let progressFrozen = false;
+    let stepsFreezeTimeout = null;
+    let stepsCountdownInterval = null;
+
+    let hasTriggeredWin = false;
+
+    function updateProgress(delta) {
+      if (progressFrozen) return;
+      progress = Math.max(0, Math.min(100, progress + delta));
+      progressFill.style.width = progress + "%";
+    }
+
+    function renderHearts() {
+      heartsContainer.innerHTML = "";
+      for (let i = 0; i < lives; i++) {
+        const img = document.createElement('img');
+        img.src = HEART_SRC;
+        img.alt = "heart";
+        img.className = "heart";
+        heartsContainer.appendChild(img);
+      }
+    }
+    renderHearts();
+
+    function updateUniquesDisplay() {
+      uniquesEl.textContent = uniques.toLocaleString('he-IL');
+    }
+    updateUniquesDisplay();
+
+    let popupTimer = null;
+    function showPopup(text) {
+      popup.textContent = text;
+      popup.style.opacity = 1;
+      if (popupTimer) clearTimeout(popupTimer);
+      popupTimer = setTimeout(() => {
+        popup.style.opacity = 0;
+      }, 2600);
+    }
+
+    const flotzaMessages = [
+      "סליחה, אני כבר בת 22 ועושה את זה כבר חודש וחצי!",
+      "מי כתב את זה? אני כותבת יפה יותר. שושנה הגננת אמרה לי",
+      "מה הבעיה בכותרת ״כל המומחים משתחווים: המרגרינה שהצילה חיים?״",
+      "זה נחמד, אבל למה לא מדברים על המפעל על ההתחלה?"
+    ];
+
+    const whatsappMessages = [
+      "יש לך כמה דקות? לא? טוב, אז יש לי שאלה...",
+      "למה כל הלקוחות שונאים אותי??? טל תעשי משהו!!!",
+      "יש משבר בהפקה. ביקשתי תמונה של שימפנזה, לא גורילה!!",
+      "יוטיוב ביקשו לשנות כותרת",
+      "מה עם הסטריפ 4?",
+      "יש לך כבר בריף ל״חזי פתיחת סתימות״?"
+    ];
+
+    function showFlotzaPopup() {
+      const msg = flotzaMessages[Math.floor(Math.random() * flotzaMessages.length)];
+      showPopup(msg);
+    }
+
+    function showHeartBonusPopup() {
+      const msg = "הופה, 60 אלף יוניקים! הרווחת לב נוסף.\nמעניין אם זה מתגלם במשכורת גם";
+      showPopup(msg);
+    }
+
+    function maybeAddHeartFromUniques() {
+      while (uniques >= nextHeartThreshold && lives < maxLives) {
+        lives++;
+        renderHearts();
+        showHeartBonusPopup();
+        nextHeartThreshold += 60000;
+      }
+    }
+
+    function clearStepsFreeze() {
+      progressFrozen = false;
+      stepsCountdownEl.style.opacity = 0;
+      stepsCountdownEl.textContent = "";
+      if (stepsFreezeTimeout) {
+        clearTimeout(stepsFreezeTimeout);
+        stepsFreezeTimeout = null;
+      }
+      if (stepsCountdownInterval) {
+        clearInterval(stepsCountdownInterval);
+        stepsCountdownInterval = null;
+      }
+    }
+
+    function startStepsFreeze() {
+      progressFrozen = true;
+      let remaining = 5;
+      stepsCountdownEl.textContent = "בודק צעדים... " + remaining;
+      stepsCountdownEl.style.opacity = 1;
+
+      stepsCountdownInterval = setInterval(() => {
+        remaining--;
+        if (remaining > 0) {
+          stepsCountdownEl.textContent = "בודק צעדים... " + remaining;
+        } else {
+          clearInterval(stepsCountdownInterval);
+          stepsCountdownInterval = null;
+        }
+      }, 1000);
+
+      stepsFreezeTimeout = setTimeout(() => {
+        clearStepsFreeze();
+        showPopup("הצעדים נספרו. אפשר להירגע.");
+      }, 5000);
+    }
+
+    function endGame(win) {
+      gameRunning = false;
+      clearStepsFreeze();
+      if (win) {
+        winUniquesEl.textContent = uniques.toLocaleString('he-IL');
+        winScreen.style.display = 'flex';
+      } else {
+        loseUniquesEl.textContent = uniques.toLocaleString('he-IL');
+        loseScreen.style.display = 'flex';
+      }
+    }
+
+    function loseLife() {
+      if (lives > 0) {
+        lives--;
+        renderHearts();
+        if (lives === 0) {
+          endGame(false);
+        }
+      }
+    }
+
+    const headlines = headlineEls.map((el, index) => {
+      return {
+        el,
+        x: gameWidth + 200 + index * 220,
+        y: 50 + Math.random() * 130,
+        speed: 2 + Math.random() * 1.4,
+        collectedThisPass: false
+      };
+    });
+
+    headlines.forEach(h => {
+      h.el.style.top  = h.y + 'px';
+      h.el.style.left = h.x + 'px';
+    });
+
+    headlines.forEach(h => {
+      h.el.addEventListener('click', () => {
+        if (!gameRunning) return;
+        if (h.collectedThisPass) return;
+
+        const k = 3 + Math.floor(Math.random() * 8);
+        const points = k * 1000;
+
+        uniques += points;
+        updateUniquesDisplay();
+        maybeAddHeartFromUniques();
+
+        h.collectedThisPass = true;
+        h.el.classList.add('headline-hit');
+        setTimeout(() => {
+          h.el.classList.remove('headline-hit');
+        }, 200);
+        h.x = -400;
+        h.el.style.left = h.x + 'px';
+      });
+    });
+
+    window.addEventListener('keydown', function(e) {
+      if (!gameRunning) return;
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (!isJumping && !isCrouching) {
+          isJumping = true;
+          velocityY = jumpStrength;
+        }
+      }
+
+      if (e.code === 'ArrowDown') {
+        e.preventDefault();
+        if (!isCrouching && !isJumping) {
+          isCrouching = true;
+          player.src = CROUCH_SRC;
+          player.style.height = '160px';
+        }
+      }
+    });
+
+    window.addEventListener('keyup', function(e) {
+      if (!gameRunning) return;
+      if (e.code === 'ArrowDown') {
+        isCrouching = false;
+        player.src = RUN_SRC;
+        player.style.height = '192px';
+      }
+    });
+
+    function updatePlayer() {
+      if (isJumping) {
+        playerBottom += velocityY;
+        velocityY += gravity;
+        if (playerBottom <= groundHeight) {
+          playerBottom = groundHeight;
+          velocityY = 0;
+          isJumping = false;
+        }
+        player.style.bottom = playerBottom + 'px';
+      }
+    }
+
+    function updateEnemy() {
+      enemyX += enemySpeed;
+      enemy.style.left = enemyX + 'px';
+
+      if (enemyX > gameWidth + 200) {
+        enemyX = -200;
+        hitCooldown1 = 0;
+      }
+      if (hitCooldown1 > 0) hitCooldown1--;
+    }
+
+    function isFlotzaNear() {
+      return enemyX > -150 && enemyX < gameWidth + 150;
+    }
+
+    function maybeSpawnSpecials() {
+      if (!gameRunning) return;
+      if (progress < 10 || progress > 90) return;
+
+      // חתול
+      if (!catActive && catSpawns === 0 && progress > 20 && progress < 40 &&
+          !isFlotzaNear() && !zoomActive && !stepsActive && !whatsappActive) {
+        catActive = true;
+        catX = -250;
+        catEnemy.style.left = "-250px";
+        catEnemy.style.display = "block";
+      } else if (!catActive && catSpawns > 0 && catSpawns < CAT_MAX_SPAWNS &&
+                 !isFlotzaNear() && !zoomActive && !stepsActive && !whatsappActive) {
+        if (Math.random() < 0.004) {
+          catActive = true;
+          catX = -250;
+          catEnemy.style.left = "-250px";
+          catEnemy.style.display = "block";
+        }
+      }
+
+      // זום
+      if (!zoomActive && zoomSpawns === 0 && progress > 30 && progress < 55 &&
+          !isFlotzaNear() && !catActive && !stepsActive && !whatsappActive) {
+        zoomActive = true;
+        zoomX = -250;
+        zoomEnemy.style.left = "-250px";
+        zoomEnemy.style.display = "block";
+      } else if (!zoomActive && zoomSpawns > 0 && zoomSpawns < ZOOM_MAX_SPAWNS &&
+                 !isFlotzaNear() && !catActive && !stepsActive && !whatsappActive) {
+        if (Math.random() < 0.004) {
+          zoomActive = true;
+          zoomX = -250;
+          zoomEnemy.style.left = "-250px";
+          zoomEnemy.style.display = "block";
+        }
+      }
+
+      // וואטסאפ – טיפה יותר שכיח, טווח רחב יותר
+      if (!whatsappActive && whatsappSpawns === 0 && progress > 25 && progress < 85 &&
+          !isFlotzaNear() && !catActive && !zoomActive && !stepsActive) {
+        whatsappActive = true;
+        whatsappX = -250;
+        whatsappEnemy.src = WHATSAPP_IMAGES[Math.floor(Math.random() * WHATSAPP_IMAGES.length)];
+        whatsappEnemy.style.left = "-250px";
+        whatsappEnemy.style.display = "block";
+      } else if (!whatsappActive && whatsappSpawns > 0 && whatsappSpawns < WHATSAPP_MAX_SPAWNS &&
+                 !isFlotzaNear() && !catActive && !zoomActive && !stepsActive) {
+        if (Math.random() < 0.04) {
+          whatsappActive = true;
+          whatsappX = -250;
+          whatsappEnemy.src = WHATSAPP_IMAGES[Math.floor(Math.random() * WHATSAPP_IMAGES.length)];
+          whatsappEnemy.style.left = "-250px";
+          whatsappEnemy.style.display = "block";
+        }
+      }
+
+      // סופר צעדים
+      if (!stepsActive && stepsSpawns === 0 && progress > 50 && progress < 80 &&
+          !isFlotzaNear() && !catActive && !zoomActive && !whatsappActive) {
+        stepsActive = true;
+        stepsX = -250;
+        stepsEnemy.style.left = "-250px";
+        stepsEnemy.style.display = "block";
+      } else if (!stepsActive && stepsSpawns > 0 && stepsSpawns < STEPS_MAX_SPAWNS &&
+                 !isFlotzaNear() && !catActive && !zoomActive && !whatsappActive) {
+        if (Math.random() < 0.004) {
+          stepsActive = true;
+          stepsX = -250;
+          stepsEnemy.style.left = "-250px";
+          stepsEnemy.style.display = "block";
+        }
+      }
+    }
+
+    function updateCat() {
+      if (!catActive) return;
+      catX += catSpeed;
+      catEnemy.style.left = catX + "px";
+
+      if (catX > gameWidth + 200) {
+        catActive = false;
+        catEnemy.style.left = "-500px";
+        catEnemy.style.display = "none";
+        catSpawns++;
+      }
+    }
+
+    function updateZoom() {
+      if (!zoomActive) return;
+      zoomX += zoomSpeed;
+      zoomEnemy.style.left = zoomX + "px";
+
+      if (zoomX > gameWidth + 200) {
+        zoomActive = false;
+        zoomEnemy.style.left = "-500px";
+        zoomEnemy.style.display = "none";
+        zoomSpawns++;
+      }
+    }
+
+    function updateSteps() {
+      if (!stepsActive) return;
+      stepsX += stepsSpeed;
+      stepsEnemy.style.left = stepsX + "px";
+
+      if (stepsX > gameWidth + 200) {
+        stepsActive = false;
+        stepsEnemy.style.left = "-500px";
+        stepsEnemy.style.display = "none";
+        stepsSpawns++;
+      }
+    }
+
+    function updateWhatsapp() {
+      if (!whatsappActive) return;
+      whatsappX += whatsappSpeed;
+      whatsappEnemy.style.left = whatsappX + "px";
+
+      if (whatsappX > gameWidth + 200) {
+        whatsappActive = false;
+        whatsappEnemy.style.left = "-500px";
+        whatsappEnemy.style.display = "none";
+        whatsappSpawns++;
+      }
+    }
+
+    function rectCollision(a, b, shrink = 40) {
+      const ar = a.getBoundingClientRect();
+      const br = b.getBoundingClientRect();
+
+      const bLeft   = br.left   + shrink;
+      const bRight  = br.right  - shrink;
+      const bTop    = br.top    + shrink;
+      const bBottom = br.bottom - shrink;
+
+      const aLeft   = ar.left;
+      const aRight  = ar.right;
+      const aTop    = ar.top;
+      const aBottom = ar.bottom;
+
+      return (
+        aLeft < bRight &&
+        aRight > bLeft &&
+        aTop < bBottom &&
+        aBottom > bTop
+      );
+    }
+
+    function checkCollisionFlotza() {
+      if (hitCooldown1 > 0 || !gameRunning) return;
+
+      const overlap = rectCollision(player, enemy, 40);
+      const enemyRect = enemy.getBoundingClientRect();
+      const playerRect = player.getBoundingClientRect();
+
+      const isHighJump = playerRect.bottom < enemyRect.top + 20;
+      const isLowEnough = playerBottom <= groundHeight + 35;
+
+      if (overlap && !isHighJump && isLowEnough) {
+        loseLife();
+        if (lives > 0) {
+          showFlotzaPopup();
+        }
+        hitCooldown1 = 30;
+        enemyX = -200;
+      }
+    }
+
+    function checkCollisionCat() {
+      if (!catActive || !gameRunning) return;
+      if (!rectCollision(player, catEnemy, 40)) return;
+
+      const catRect = catEnemy.getBoundingClientRect();
+      const playerRect = player.getBoundingClientRect();
+      const isHighJump = playerRect.bottom < catRect.top + 20;
+
+      if (!isHighJump) {
+        showPopup("אוי לא! החתול עשה קקי בארון!\nגועל נפש. זה מחזיר אותך אחורה");
+        updateProgress(-12);
+      }
+
+      catActive = false;
+      catEnemy.style.left = "-500px";
+      catEnemy.style.display = "none";
+      catSpawns++;
+    }
+
+    function checkCollisionZoom() {
+      if (!zoomActive || !gameRunning) return;
+      if (!rectCollision(player, zoomEnemy, 40)) return;
+
+      const zoomRect   = zoomEnemy.getBoundingClientRect();
+      const playerRect = player.getBoundingClientRect();
+      const isHighJump = playerRect.bottom < zoomRect.top + 20;
+
+      if (!isHighJump) {
+        showPopup(
+          "כל זה בשביל לראות את המנכ״ל טוחן בורקס במשך חצי שעה?\n" +
+          "למה זה לא היה אימייל? התעכבנו בדרך למטבחון"
+        );
+        updateProgress(-25);
+      }
+
+      zoomActive = false;
+      zoomEnemy.style.left = "-500px";
+      zoomEnemy.style.display = "none";
+      zoomSpawns++;
+    }
+
+    function checkCollisionSteps() {
+      if (!stepsActive || !gameRunning) return;
+      if (!rectCollision(player, stepsEnemy, 40)) return;
+
+      const stepsRect = stepsEnemy.getBoundingClientRect();
+      const playerRect = player.getBoundingClientRect();
+      const isHighJump = playerRect.bottom < stepsRect.top + 20;
+
+      if (!isHighJump) {
+        showPopup("את לא צועדת מהר מספיק!");
+        startStepsFreeze();
+      }
+
+      stepsActive = false;
+      stepsEnemy.style.left = "-500px";
+      stepsEnemy.style.display = "none";
+      stepsSpawns++;
+    }
+
+    function checkCollisionWhatsapp() {
+      if (!whatsappActive || !gameRunning) return;
+      if (!rectCollision(player, whatsappEnemy, 40)) return;
+
+      if (isCrouching) return;
+
+      const msg = whatsappMessages[Math.floor(Math.random() * whatsappMessages.length)];
+      showPopup(msg);
+
+      // במקום להחזיר אחורה בסרגל – מוריד לב אחד
+      loseLife();
+
+      whatsappActive = false;
+      whatsappEnemy.style.left = "-500px";
+      whatsappEnemy.style.display = "none";
+      whatsappSpawns++;
+    }
+
+    function updateHeadlines() {
+      headlines.forEach(h => {
+        h.x -= h.speed;
+        h.el.style.left = h.x + 'px';
+        if (h.x < -400) {
+          h.x = gameWidth + 200 + Math.random() * 600;
+          h.y = 50 + Math.random() * 130;
+          h.el.style.top = h.y + 'px';
+          h.collectedThisPass = false;
+        }
+      });
+    }
+
+    function triggerWinRunOut() {
+      gameRunning = false; // אין עוד פגיעה/התקדמות, רק ריצה החוצה
+      function step() {
+        playerXPercent += 1.2;
+        player.style.left = playerXPercent + "%";
+        if (playerXPercent > 120) {
+          endGame(true);
+        } else {
+          requestAnimationFrame(step);
+        }
+      }
+      step();
+    }
+
+    function gameLoop() {
+      if (!gameRunning && !hasTriggeredWin) return;
+
+      if (!hasTriggeredWin) {
+        updateProgress(0.02);
+        updatePlayer();
+        updateEnemy();
+        maybeSpawnSpecials();
+        updateCat();
+        updateZoom();
+        updateSteps();
+        updateWhatsapp();
+        updateHeadlines();
+
+        checkCollisionFlotza();
+        checkCollisionCat();
+        checkCollisionZoom();
+        checkCollisionSteps();
+        checkCollisionWhatsapp();
+
+        if (progress >= 100 && !hasTriggeredWin) {
+          hasTriggeredWin = true;
+          triggerWinRunOut();
+        }
+      }
+
+      if (!hasTriggeredWin) {
+        requestAnimationFrame(gameLoop);
+      }
+    }
+
+    gameLoop();
+  }
+})();
+</script>
+
+</body>
+</html>
